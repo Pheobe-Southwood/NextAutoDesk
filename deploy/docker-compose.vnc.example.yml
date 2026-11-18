@@ -1,0 +1,27 @@
+# NextAutoDesk - reserved VNC overlay (NOT enabled by default)
+# =============================================================================
+# The default image neither installs nor enables VNC. This overlay documents the
+# reserved integration point and is only usable with an image that was built
+# with --build-arg INSTALL_VNC=true (which installs x11vnc and its supervisord
+# program). The default image loses no functionality without it.
+#
+# Usage (build host):
+#   docker compose -f deploy/docker-compose.yml \
+#                  -f deploy/docker-compose.vnc.example.yml build
+#   docker compose -f deploy/docker-compose.yml \
+#                  -f deploy/docker-compose.vnc.example.yml up -d
+#
+# Security: x11vnc has no TLS. This overlay publishes it on 127.0.0.1 only;
+# reach it through an SSH tunnel (ssh -L 5900:127.0.0.1:5900 <user>@<vps-host>) and never
+# expose port 5900 on a public interface.
+# =============================================================================
+
+services:
+  nextautodesk:
+    build:
+      args:
+        INSTALL_VNC: "true"
+    environment:
+      NAD_VNC_ENABLED: "true"
+    ports:
+      - "${NAD_VNC_BIND_IP:-127.0.0.1}:${NAD_VNC_PORT:-5900}:5900"

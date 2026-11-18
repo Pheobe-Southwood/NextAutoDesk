@@ -1,0 +1,90 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nextautodesk"
+version = "0.1.0a1"
+description = "Headless X11/XFCE GUI automation node with policy-driven human-like mouse & keyboard input, screen element perception (template matching + OCR), screen capture, window management and a serial task queue, exposed over HTTP."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "NextAutoDesk contributors" }]
+keywords = ["automation", "x11", "xvfb", "xfce", "pyautogui", "human-like", "fastapi"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+  "fastapi==0.163.2",
+  "uvicorn==0.54.0",
+  "pydantic==2.14.3",
+  "pydantic-settings==2.16.3",
+  "PyYAML==6.0.3",
+  "pyautogui==0.9.54",
+  "pillow==13.0.0",
+  "python-xlib==0.33",
+  "psutil==7.2.2",
+  "human-movement==0.1.6",
+  "opencv-python-headless==5.1.0.95",
+  "pytesseract==0.3.13",
+]
+
+[project.optional-dependencies]
+# Pre-trained statistical mouse-trajectory model (MIT, TomokotoKiyoshi/HumanMoveMouse).
+humanmove_mouse = ["HumanMoveMouse==1.2.0"]
+# WindMouse reference implementation (GPL-3.0-only, AsfhtgkDavid/windmouse).
+# Only enabled on request; see THIRD_PARTY_NOTICES.md for the license note.
+windmouse = ["windmouse==1.0.2"]
+dev = [
+  "pytest==9.2.0",
+  "pytest-asyncio==1.5.0",
+  "httpx==0.28.1",
+  "ruff==0.17.5",
+]
+
+[project.scripts]
+nextautodesk = "nextautodesk.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/Pheobe-Southwood/NextAutoDesk"
+Repository = "https://github.com/Pheobe-Southwood/NextAutoDesk"
+Documentation = "https://github.com/Pheobe-Southwood/NextAutoDesk/blob/main/docs/architecture.md"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+nextautodesk = ["config/*.yml", "py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Always test the working-tree sources, never an installed/editable copy.
+pythonpath = ["src"]
+addopts = "-ra"
+asyncio_mode = "auto"
+markers = [
+  "integration: tests that require a running X11 desktop and the container runtime",
+  "network: tests that touch external services",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "RUF"]
+ignore = ["E501", "UP046", "B027", "B008", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]

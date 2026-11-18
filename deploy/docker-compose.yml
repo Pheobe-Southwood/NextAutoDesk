@@ -1,0 +1,97 @@
+# NextAutoDesk - production Docker Compose deployment
+# =============================================================================
+# Target host: Ubuntu 24.04 VPS (2 vCPU / ~3.9 GB RAM / ~11 GB free disk).
+# The image is either built elsewhere and streamed in (deploy/vps/deploy.sh) or
+# built on the host itself with a memory-guarded legacy build
+# (deploy/vps/build-on-host.sh). Both paths set NAD_IMAGE_TAG below.
+#
+# Usage:
+#   cp deploy/.env.example .env          # then edit NEXT_AUTODESK_API_KEYS
+#   mkdir -p config data && cp config/nextautodesk.example.yml config/nextautodesk.yml
+#   chown -R 1000:1000 data              # container runs as uid/gid 1000 (nad)
+#   docker compose up -d
+#
+# Environment variables are read from ./.env (same directory as this file).
+# See deploy/README.md for build/transfer/run instructions and operations.
+# =============================================================================
+
+name: nextautodesk
+
+services:
+  nextautodesk:
+    # Tag is derived from pyproject.toml by the deployment scripts and exported
+    # to .env as NAD_IMAGE_TAG. It is required on purpose: there is no default
+    # version to accidentally run a stale image.
+    image: "nextautodesk:${NAD_IMAGE_TAG:?set NAD_IMAGE_TAG in .env (deploy scripts derive it from pyproject.toml)}"
+
+    # Optional: allows `docker compose build` on the build host. On the VPS the
+    # image is loaded from a tarball and `up -d` reuses it without rebuilding.
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: app
+      args:
+        UBUNTU_TAG: "24.04"
+        APP_VERSION: "${NAD_IMAGE_TAG:?set NAD_IMAGE_TAG in .env}"
+        USER_UID: "1000"
+        USER_GID: "1000"
+        WITH_OPTIONAL_STRATEGIES: "true"
+        INSTALL_VNC: "false"
+
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+
+    env_file:
+      - .env
+    environment:
+      # Fail fast at `docker compose up` time when no API key is configured.
+      NEXT_AUTODESK_API_KEYS: "${NEXT_AUTODESK_API_KEYS:?set NEXT_AUTODESK_API_KEYS in .env (openssl rand -hex 32)}"
+      NEXT_AUTODESK_LOG_LEVEL: "${NEXT_AUTODESK_LOG_LEVEL:-INFO}"
+      TZ: "${TZ:-UTC}"
+
+    ports:
+      - "${NAD_BIND_IP:-0.0.0.0}:${NAD_PORT:-8765}:8765"
+
+    volumes:
+      # Persistent data: SQLite task database, screenshots, rotating logs.
+      - "${NAD_DATA_DIR:-./data}:/data"
+      # Deployment configuration overlay (optional but recommended). When the
+      # directory is empty or the file is absent the image's built-in config is
+      # used, so an unedited deployment still boots.
+      - "${NAD_CONFIG_DIR:-./config}:/app/config:ro"
+
+    # ---------------------------------------------------------------------
+    # Resource limits for the 2 vCPU / ~3.9 GB VPS. The desktop stack idles at
+    # ~1.1-1.2 GB; 2 GB leaves headroom for a heavy action (screenshot,
+    # long human-like gesture, one OpenCV/Tesseract perception call) while the
+    # host keeps ~1.9 GB for itself, so the container can never OOM the host.
+    # pids_limit caps runaway subprocess trees (Tesseract workers, task steps).
+    # ---------------------------------------------------------------------
+    mem_limit: 2g
+    memswap_limit: 2g
+    mem_swappiness: 0
+    pids_limit: 512
+    shm_size: 256m
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    healthcheck:
+      # The probe script resolves the effective API port published by the
+      # entrypoint, so a custom server.port in the config overlay stays healthy.
+      test: ["CMD", "/opt/nad/healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,0 +1,26 @@
+; Reserved VNC support - DISABLED BY DEFAULT.
+;
+; This file is only copied into /opt/nad/conf.d/ when the image is built with
+;   --build-arg INSTALL_VNC=true
+; and the deploy/docker-compose.vnc.example.yml overlay is the matching compose
+; configuration. The default image neither installs x11vnc nor opens port 5900.
+;
+; VNC listens on localhost inside the container; expose it only through an SSH
+; tunnel or a reverse proxy with TLS and authentication. x11vnc itself is not
+; IPSec/TLS capable - do not publish it on an untrusted network.
+
+[program:x11vnc]
+command=/usr/bin/x11vnc -display %(ENV_DISPLAY)s -rfbport 5900 -localhost -forever -shared -nopw -noxdamage -quiet
+priority=40
+autostart=true
+autorestart=true
+startsecs=2
+startretries=5
+stopsignal=TERM
+stopwaitsecs=5
+stopasgroup=true
+killasgroup=true
+redirect_stderr=true
+stdout_logfile=/data/logs/x11vnc.log
+stdout_logfile_maxbytes=5MB
+stdout_logfile_backups=2

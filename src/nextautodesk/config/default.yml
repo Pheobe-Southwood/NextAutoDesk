@@ -1,0 +1,210 @@
+# NextAutoDesk default configuration (bundled with the package).
+#
+# This file is the base configuration. A deployment may point at an overlay YAML
+# (NEXT_AUTODESK_CONFIG / --config) whose nested values are merged on top of it.
+# A small set of environment variables (see src/nextautodesk/config.py) override
+# secret / environment-specific values.
+#
+# Every mouse and keyboard operation has its own independent strategy entry.
+# Changing a strategy only requires editing this file (or a deployment overlay)
+# and calling POST /api/v1/config/reload - no business code changes.
+
+version: 1
+
+server:
+  host: 0.0.0.0
+  port: 8765
+  # How long a *synchronous* single-action request may wait for the serial desktop
+  # executor. Long compositions should be submitted as tasks instead.
+  sync_timeout_ms: 300000
+  allow_strategy_override: true
+  max_request_body_bytes: 2097152
+  cors:
+    enabled: false
+    allow_origins: []
+  docs_url: /docs
+  openapi_url: /openapi.json
+
+auth:
+  enabled: true
+  header: X-API-Key
+  # Replace via NEXT_AUTODESK_API_KEYS in the deployment environment. An empty
+  # placeholder key is intentionally invalid: the app refuses to start with
+  # auth enabled and no real key configured.
+  api_keys: []
+  protect_docs: false
+
+desktop:
+  display: ":99"
+  width: 1920
+  height: 1080
+  depth: 24
+  dpi: 96
+  require_window_manager: true
+  startup_timeout_s: 60
+
+driver:
+  keyboard:
+    # auto: Xlib keysym remapping when available, otherwise xdotool for non-ASCII.
+    unicode_mode: auto
+  screen:
+    jpeg_quality: 85
+  window:
+    backend: xdotool
+    command_timeout_ms: 5000
+
+strategies:
+  # Provider implementations are discovered from the built-in provider modules and
+  # from Python entry points in the group "nextautodesk.strategies".
+  providers:
+    human_movement:
+      enabled: true
+      params:
+        profile: standard
+        engine: minimum_jerk
+        seed: null
+        realtime: true
+        stop_on_physical_input: false
+        target_width: 24.0
+        hold_default_ms: 120
+        sequence_interval_ms: 150
+    human_move_mouse:
+      enabled: true
+      params:
+        model_path: null
+        num_points: 100
+        jitter_amplitude: 0.3
+        speed_factor: 1.0
+        seed: null
+    windmouse:
+      enabled: true
+      params:
+        gravity: 9
+        wind: 3
+        max_step: 15
+        damped_distance: 12
+        step_duration_s: 0.1
+        seed: null
+    clack:
+      enabled: true
+      params:
+        binary: /usr/local/bin/clack
+        wpm: 80.0
+        jitter: 0.15
+        error_rate: 0.0
+        correction_rate: 0.85
+        layout: qwerty
+        seed: null
+        no_fatigue: true
+        max_pause_ms: 5000
+        thinking_pause_prob: 0.0
+        code_mode: false
+        startup_timeout_s: 5
+        char_timeout_s: 10
+    direct:
+      enabled: true
+      params:
+        hold_default_ms: 100
+        sequence_interval_ms: 120
+  operations:
+    mouse_move:
+      provider: human_movement
+    mouse_move_relative:
+      provider: human_movement
+    mouse_click_left:
+      provider: human_movement
+    mouse_click_right:
+      provider: human_movement
+    mouse_click_middle:
+      provider: human_movement
+    mouse_double_click:
+      provider: human_movement
+    # Mouse down/up are state primitives: human_movement releases everything it
+    # pressed when its per-request HumanInput closes, so a held button could not
+    # survive until the paired mouse_up request. direct performs the primitive
+    # immediately and keeps the button state across requests.
+    mouse_down:
+      provider: direct
+    mouse_up:
+      provider: direct
+    mouse_hold:
+      provider: human_movement
+    mouse_drag:
+      provider: human_movement
+    mouse_scroll_vertical:
+      provider: human_movement
+    mouse_scroll_horizontal:
+      provider: human_movement
+    keyboard_type_text:
+      provider: human_movement
+    keyboard_key_press:
+      provider: human_movement
+    # Down-without-release is a state primitive: human_movement closes/releases
+    # its HumanInput at the end of each request, so it cannot keep a key held
+    # across requests. The direct provider performs the primitive immediately.
+    keyboard_key_down:
+      provider: direct
+    # Paired with keyboard_key_down: a release must not run through an engine
+    # whose close() releases unrelated held inputs.
+    keyboard_key_release:
+      provider: direct
+    keyboard_key_hold:
+      provider: human_movement
+    keyboard_hotkey:
+      provider: human_movement
+    keyboard_key_sequence:
+      provider: human_movement
+      params:
+        sequence_interval_ms: 150
+
+perception:
+  # Read-only screen understanding: locate elements by template image or OCR text.
+  enabled: true
+  # Hard cap applied to every locate/OCR result list.
+  max_results: 20
+  locators:
+    # OpenCV template matching (pip wheel "opencv-python-headless").
+    template:
+      enabled: true
+      params:
+        threshold: 0.8
+        grayscale: true
+        scales: [1.0]
+    # Tesseract OCR (system engine, pytesseract binding).
+    text:
+      enabled: true
+      params:
+        languages: [eng, chi_sim]
+        psm: 6
+        min_confidence: 40
+        granularity: line
+
+tasks:
+  max_queue_size: 256
+  default_timeout_ms: 300000
+  step_timeout_ms: 120000
+  max_steps: 200
+  retention_days: 7
+  max_records: 20000
+  shutdown_grace_s: 10
+
+storage:
+  data_dir: /data
+  screenshots_dir: screenshots
+  database: nextautodesk.db
+  logs_dir: logs
+  max_screenshots: 2000
+  screenshot_retention_days: 14
+
+logging:
+  level: INFO
+  format: json
+  access_log: true
+  max_bytes: 10485760
+  backup_count: 5
+
+health:
+  deep_timeout_ms: 5000
+  check_window_manager: true
+  check_disk: true
+  min_free_disk_mb: 256

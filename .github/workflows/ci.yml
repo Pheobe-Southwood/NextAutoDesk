@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install package (with optional strategy deps)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,humanmove_mouse,windmouse]"
+      - name: Install Tesseract OCR runtime
+        # OCR unit tests are skipped without the engine; install it so they run.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng
+      - name: Ruff
+        run: ruff check src tests
+      - name: Unit tests
+        run: pytest tests/unit -q
+
+  docker-build:
+    # Builds the exact runtime image in CI (no local Docker needed). Runs on
+    # main pushes and manual dispatches, not on every PR.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build runtime image
+        run: |
+          docker buildx build --load \
+            -f docker/Dockerfile --target app \
+            --build-arg APP_VERSION=0.1.0-alpha1 \
+            --build-arg WITH_OPTIONAL_STRATEGIES=true \
+            -t nextautodesk:ci .
+      - name: Inspect image
+        run: |
+          docker image inspect nextautodesk:ci \
+            --format 'id={{.Id}} size={{.Size}} platform={{.Os}}/{{.Architecture}}'
+          test "$(docker image inspect nextautodesk:ci --format '{{.Config.User}}')" = "nad"
+      - name: Container smoke test (Xvfb, API, screenshot)
+        run: ./scripts/container-smoke-test.sh --image nextautodesk:ci

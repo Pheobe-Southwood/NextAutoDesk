@@ -1,0 +1,66 @@
+# Example deployment overlay for NextAutoDesk.
+#
+# Copy to <deployment-dir>/config/nextautodesk.yml and adjust. Values are merged
+# on top of the bundled default configuration (src/nextautodesk/config/default.yml).
+#
+# Secrets (API keys) are expected from the environment:
+#   NEXT_AUTODESK_API_KEYS=<comma separated keys>
+
+version: 1
+
+server:
+  host: 0.0.0.0
+  port: 8765
+
+auth:
+  enabled: true
+  header: X-API-Key
+
+desktop:
+  display: ":99"
+  width: 1920
+  height: 1080
+  depth: 24
+
+storage:
+  data_dir: /data
+
+logging:
+  level: INFO
+  format: json
+
+# Per-operation strategy overrides. Each key is one of the 19 operations from
+# docs/architecture.md. Example: use the pre-trained HumanMoveMouse model for
+# absolute pointer moves while everything else stays on human-movement.
+#
+# strategies:
+#   operations:
+#     mouse_move:
+#       provider: human_move_mouse
+#       params:
+#         speed_factor: 1.1
+#     keyboard_type_text:
+#       provider: clack
+#       params:
+#         wpm: 90
+
+# Screen element perception (read-only): locate elements by template image or OCR
+# text. Defaults ship in src/nextautodesk/config/default.yml; override per locator.
+#
+# perception:
+#   enabled: true
+#   max_results: 20
+#   locators:
+#     template:
+#       enabled: true
+#       params:
+#         threshold: 0.85
+#         grayscale: true
+#         scales: [0.75, 1.0, 1.25]
+#     text:
+#       enabled: true
+#       params:
+#         languages: [eng]
+#         psm: 6
+#         min_confidence: 50
+#         granularity: line
